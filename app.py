@@ -87,6 +87,7 @@ def login():
     except Exception as e:
         print(f"Erro no login: {e}")
         return jsonify(message="Erro ao autenticar"), 500
+    
 
 @app.route('/api/recuperar-senha', methods=['POST'])
 def recuperar_senha():
@@ -495,17 +496,19 @@ def enviar_documento():
         if not categoria or not arquivos:
             return jsonify(message="Categoria ou arquivos não fornecidos"), 400
 
+        pasta_fornecedor = os.path.join(UPLOAD_FOLDER, str(fornecedor_id))
+        os.makedirs(pasta_fornecedor, exist_ok=True)
+
         lista_arquivos = []
         arquivos_paths = []  
 
-        pasta_fornecedor = os.path.join(UPLOAD_FOLDER, str(fornecedor_id))
-        os.makedirs(pasta_fornecedor, exist_ok=True)
+        documentos = []
 
         for arquivo in arquivos:
             if not allowed_file(arquivo.filename):
                 return jsonify(message=f"Extensão do arquivo não permitida: {arquivo.filename}"), 400
 
-            filename = secure_filename(arquivo.filename)  
+            filename = secure_filename(arquivo.filename)
             caminho_arquivo = os.path.join(pasta_fornecedor, filename)
             arquivo.save(caminho_arquivo)
 
@@ -514,11 +517,12 @@ def enviar_documento():
                 categoria=categoria,
                 fornecedor_id=fornecedor.id
             )
-            db.session.add(documento)
 
+            documentos.append(documento)
             lista_arquivos.append(filename)
-            arquivos_paths.append(caminho_arquivo) 
+            arquivos_paths.append(caminho_arquivo)
 
+        db.session.add_all(documentos)
         db.session.commit()
 
         link_documentos = [f"/uploads/{fornecedor_id}/{a}" for a in lista_arquivos]
@@ -535,8 +539,9 @@ def enviar_documento():
         return jsonify(message="Documentos enviados com sucesso", enviados=lista_arquivos), 200
 
     except Exception as e:
+        import traceback
+        print("Erro no envio de documentos:", traceback.format_exc())
         return jsonify(message="Erro ao enviar documentos: " + str(e)), 500
-
     
 
 @app.route('/api/documentos-necessarios', methods=['POST'])
